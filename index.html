@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Klasifikasi Daun Tomat</title>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js untuk grafik top-3 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    .dropzone { border:2px dashed #cbd5e1; }
+    .dropzone.dragover { border-color:#0ea5e9; background:#f0f9ff }
+    .meter { height: 10px; background:#e2e8f0; border-radius:9999px; overflow:hidden }
+    .meter > span { display:block; height:100%; background:#0ea5e9 }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+  <div class="max-w-5xl mx-auto p-6">
+    <header class="mb-6">
+      <h1 class="text-2xl md:text-3xl font-semibold">🍅 Klasifikasi Penyakit Daun Tomat</h1>
+      <p class="text-slate-600">Upload foto daun → kirim ke model → tampilkan hasil dan kirim via email.</p>
+    </header>
+
+    <!-- Upload & Hasil -->
+    <section class="grid md:grid-cols-2 gap-6">
+      <div class="p-5 bg-white rounded-2xl shadow">
+        <h2 class="font-semibold mb-2">1) Unggah Gambar</h2>
+        <div id="dropzone" class="dropzone rounded-2xl p-6 flex flex-col items-center justify-center text-slate-500">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 15a4 4 0 0 0 4 4h10a4 4 0 1 0 0-8h-1.26A8 8 0 1 0 3 15z"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>
+          <p class="mb-2">Drag & drop atau klik untuk memilih file</p>
+          <input id="fileInput" type="file" accept="image/*" class="hidden" />
+          <button id="btnPick" class="mt-2 px-3 py-2 rounded-xl bg-sky-500 text-white">Pilih File</button>
+        </div>
+        <div id="previewWrap" class="mt-4 hidden">
+          <p class="text-sm text-slate-600 mb-1">Pratinjau</p>
+          <img id="previewImg" class="rounded-xl border" alt="preview" />
+          <div class="mt-3 text-xs text-slate-500" id="fileInfo"></div>
+        </div>
+        <div class="mt-4 flex gap-2">
+          <button id="btnPredict" class="px-4 py-2 rounded-xl bg-emerald-600 text-white disabled:opacity-50" disabled>Prediksi</button>
+          <button id="btnReset" class="px-4 py-2 rounded-xl bg-slate-200">Reset</button>
+          <button id="btnSendEmail" class="px-4 py-2 rounded-xl bg-sky-600 text-white hidden">Kirim ke Email</button>
+        </div>
+        <p id="status" class="mt-3 text-sm text-slate-600"></p>
+      </div>
+
+      <!-- Hasil -->
+      <div class="p-5 bg-white rounded-2xl shadow">
+        <h2 class="font-semibold mb-2">2) Hasil Prediksi</h2>
+        <div id="result" class="space-y-3">
+          <div class="hidden" id="resMain">
+            <div class="flex items-center gap-2">
+              <span class="text-sm text-slate-500">Label:</span>
+              <span id="labelId" class="inline-flex items-center px-2 py-1 rounded-full bg-sky-100 text-sky-700 text-sm font-medium"></span>
+              <span id="labelEn" class="text-xs text-slate-400"></span>
+            </div>
+            <div>
+              <div class="flex justify-between text-sm"><span>Kepercayaan</span><span id="confPct">0%</span></div>
+              <div class="meter mt-1"><span id="confBar" style="width:0%"></span></div>
+            </div>
+          </div>
+          <div class="hidden" id="resTop3">
+            <h3 class="mt-4 font-medium">Top-3 Kelas</h3>
+            <canvas id="chart" height="140"></canvas>
+          </div>
+          <div id="resRaw" class="text-xs text-slate-500 hidden"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Riwayat singkat -->
+    <section class="mt-6 p-5 bg-white rounded-2xl shadow">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="font-semibold">Riwayat Prediksi (sesi ini)</h2>
+        <button id="btnClearHistory" class="text-sm text-slate-500 hover:text-slate-700">Bersihkan</button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-left text-slate-500 border-b">
+              <th class="py-2">Waktu</th>
+              <th>Label</th>
+              <th>Conf.</th>
+              <th>File</th>
+            </tr>
+          </thead>
+          <tbody id="history"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="mt-10 text-xs text-slate-500">
+      <p>Demo TA – Klasifikasi Penyakit Daun Tomat (MobileNetV2 + Flask API + n8n). Frontend client-side murni.</p>
+    </footer>
+  </div>
+
+<script>
+  // ======== Konfigurasi tetap (hardcoded) ========
+  const API_URL = () => "https://clinton-dizziest-misrely.ngrok-free.dev/predict";
+  const N8N_URL = () => "https://projectade.app.n8n.cloud/webhook/klasifikasi-tomat";
+
+  // ======== Elemen UI ========
+  const dz = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const btnPick = document.getElementById('btnPick');
+  const btnPredict = document.getElementById('btnPredict');
+  const btnReset = document.getElementById('btnReset');
+  const btnSendEmail = document.getElementById('btnSendEmail');
+  const statusEl = document.getElementById('status');
+  const previewWrap = document.getElementById('previewWrap');
+  const previewImg = document.getElementById('previewImg');
+  const fileInfo = document.getElementById('fileInfo');
+  const labelId = document.getElementById('labelId');
+  const labelEn = document.getElementById('labelEn');
+  const confPct = document.getElementById('confPct');
+  const confBar = document.getElementById('confBar');
+  const resMain = document.getElementById('resMain');
+  const resTop3 = document.getElementById('resTop3');
+  const resRaw = document.getElementById('resRaw');
+  const histTbody = document.getElementById('history');
+  const btnClearHistory = document.getElementById('btnClearHistory');
+
+  let currentFile = null;
+  let chart = null;
+  let lastPrediction = null;
+
+  function toast(msg){ statusEl.textContent = msg; setTimeout(()=>statusEl.textContent='', 3000); }
+  function fmtPct(x){ return (x*100).toFixed(2) + '%'; }
+  function humanSize(bytes){ const units=['B','KB','MB','GB']; let i=0; while(bytes>=1024 && i<units.length-1){ bytes/=1024; i++; } return bytes.toFixed(1)+' '+units[i]; }
+
+  // Dropzone behavior
+  ;['dragenter','dragover'].forEach(ev=>dz.addEventListener(ev, e=>{e.preventDefault(); e.stopPropagation(); dz.classList.add('dragover');}));
+  ;['dragleave','drop'].forEach(ev=>dz.addEventListener(ev, e=>{e.preventDefault(); e.stopPropagation(); dz.classList.remove('dragover');}));
+  dz.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f) setFile(f); });
+  dz.addEventListener('click', ()=> fileInput.click());
+  btnPick.addEventListener('click', ()=> fileInput.click());
+  fileInput.addEventListener('change', e=>{ const f=e.target.files[0]; if(f) setFile(f); });
+
+  function setFile(f){
+    if(!f.type.startsWith('image/')){ toast('File harus gambar.'); return; }
+    currentFile = f;
+    const url = URL.createObjectURL(f);
+    previewImg.src = url;
+    previewImg.onload = ()=> URL.revokeObjectURL(url);
+    previewWrap.classList.remove('hidden');
+    btnPredict.disabled = false;
+    fileInfo.textContent = `${f.name} • ${f.type} • ${humanSize(f.size)}`;
+    resMain.classList.add('hidden'); resTop3.classList.add('hidden'); confBar.style.width='0%'; confPct.textContent='0%';
+  }
+
+  btnReset.onclick = ()=>{ currentFile = null; fileInput.value = ''; previewWrap.classList.add('hidden'); btnPredict.disabled = true; resMain.classList.add('hidden'); resTop3.classList.add('hidden'); btnSendEmail.classList.add('hidden'); confBar.style.width='0%'; confPct.textContent='0%'; labelId.textContent=''; labelEn.textContent=''; };
+
+  btnClearHistory.onclick = ()=>{ histTbody.innerHTML=''; };
+
+  // Prediksi
+  btnPredict.onclick = async ()=>{
+    if(!currentFile) return toast('Pilih gambar dulu.');
+    const fd = new FormData(); fd.append('file', currentFile, currentFile.name);
+    btnPredict.disabled = true; toast('Mengirim ke model...');
+    try{
+      const res = await fetch(API_URL(), { method:'POST', body: fd });
+      if(!res.ok){ const t = await res.text(); throw new Error(`HTTP ${res.status}: ${t}`); }
+      const j = await res.json();
+      lastPrediction = j;
+
+      labelId.textContent = j.label_id || '-';
+      labelEn.textContent = j.label_en ? `(${j.label_en})` : '';
+      const conf = Number(j.confidence ?? 0);
+      confPct.textContent = fmtPct(conf);
+      confBar.style.width = (conf*100).toFixed(2)+'%';
+      resMain.classList.remove('hidden');
+
+      if(j.top3){
+        const labels = j.top3.map(x=> x.label_id || x.label_en);
+        const data = j.top3.map(x=> Number(x.confidence||0));
+        const ctx = document.getElementById('chart').getContext('2d');
+        if(chart) chart.destroy();
+        chart = new Chart(ctx, { type:'bar', data:{ labels, datasets:[{ label:'Confidence', data }] }, options:{ responsive:true, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, ticks:{ callback:(v)=> (v*100)+'%' } } } } });
+        resTop3.classList.remove('hidden');
+      }
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class='py-2 text-slate-500'>${new Date().toLocaleString()}</td><td>${labelId.textContent}</td><td>${confPct.textContent}</td><td>${currentFile.name}</td>`;
+      histTbody.prepend(tr);
+
+      toast('Selesai.');
+      resRaw.classList.add('hidden');
+      btnSendEmail.classList.remove('hidden'); // tampilkan tombol kirim email
+    }catch(err){
+      resRaw.classList.remove('hidden');
+      resRaw.textContent = String(err);
+      toast('Gagal prediksi. Cek URL API & koneksi.');
+    }finally{
+      btnPredict.disabled = false;
+    }
+  };
+
+  // Kirim hasil via email
+  btnSendEmail.onclick = async ()=>{
+    if(!lastPrediction) return toast("Belum ada hasil prediksi.");
+    const email = prompt("Masukkan alamat email tujuan:");
+    if(!email) return;
+    const payload = {
+      email: email,
+      label_id: lastPrediction.label_id,
+      label_en: lastPrediction.label_en,
+      confidence: lastPrediction.confidence,
+      filename: currentFile?.name || '',
+      timestamp: new Date().toISOString()
+    };
+    try {
+      await fetch(N8N_URL(), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      toast("📧 Hasil terkirim ke email!");
+    } catch (err) {
+      toast("Gagal kirim email: " + err.message);
+    }
+  };
+</script>
+</body>
+</html>
