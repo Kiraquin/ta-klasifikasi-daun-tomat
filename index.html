@@ -203,11 +203,8 @@
     if(historyData.length===0)return toast('Belum ada data riwayat.');
     const pdf=new jsPDF('p','pt','a4');
     pdf.setFontSize(14);
-    pdf.text("UNIVERSITAS NAROTAMA",200,40,{align:"center"});
-    pdf.setFontSize(12);
     pdf.text("LAPORAN HASIL KLASIFIKASI PENYAKIT DAUN TOMAT",200,60,{align:"center"});
     pdf.setFontSize(10);
-    pdf.text("Nama: Ade Tri Satria   |   NIM: 04322025   |   Prodi: Teknik Informatika",40,85);
     pdf.text("Model: MobileNetV2 (Flask API)",40,100);
 
     let y=130;
@@ -233,10 +230,11 @@
       y+=100+(desc.length+adv.length)*6;
       if(y>720){pdf.addPage();y=60;}
     }
-    pdf.save("Laporan_Klasifikasi_Tomat_AdeTriSatria.pdf");
+    pdf.save("Laporan_Klasifikasi_Tomat.pdf");
   };
 
   function loadImage(url){return new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=url;});}
 </script>
 </body>
 </html>
+
