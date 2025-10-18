@@ -6,6 +6,8 @@
   <title>Klasifikasi Penyakit Daun Tomat</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
   <style>
     .dropzone { border:2px dashed #cbd5e1; transition:0.2s; }
     .dropzone.dragover { border-color:#0ea5e9; background:#f0f9ff }
@@ -17,7 +19,7 @@
   <div class="max-w-5xl mx-auto p-6">
     <header class="mb-6 text-center">
       <h1 class="text-2xl md:text-3xl font-semibold">🍅 Klasifikasi Penyakit Daun Tomat</h1>
-      <p class="text-slate-600">Upload foto daun → model memprediksi → tampilkan hasil & saran penanganan.</p>
+      <p class="text-slate-600">Upload foto daun tomat → sistem mendeteksi jenis penyakit → tampilkan hasil beserta penjelasan dan saran penanganan.</p>
     </header>
 
     <section class="grid md:grid-cols-2 gap-6">
@@ -28,7 +30,7 @@
           <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path d="M3 15a4 4 0 0 0 4 4h10a4 4 0 1 0 0-8h-1.26A8 8 0 1 0 3 15z"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/>
           </svg>
-          <p class="mb-2">Drag & drop atau klik untuk memilih file</p>
+          <p class="mb-2">Drag & drop atau klik untuk memilih file gambar daun tomat</p>
           <input id="fileInput" type="file" accept="image/*" class="hidden" />
           <button id="btnPick" class="mt-2 px-3 py-2 rounded-xl bg-sky-500 text-white">Pilih File</button>
         </div>
@@ -65,19 +67,19 @@
             <canvas id="chart" height="140"></canvas>
           </div>
 
-          <!-- Penjelasan penyakit -->
           <div id="resInfo" class="hidden mt-2 p-3 rounded-xl bg-blue-50 border border-blue-100 text-sm text-slate-700"></div>
-
-          <div id="resRaw" class="text-xs text-slate-500 hidden"></div>
         </div>
       </div>
     </section>
 
     <!-- Riwayat -->
-    <section class="mt-6 p-5 bg-white rounded-2xl shadow">
+    <section class="mt-6 p-5 bg-white rounded-2xl shadow" id="historySection">
       <div class="flex items-center justify-between mb-2">
         <h2 class="font-semibold">Riwayat Prediksi (sesi ini)</h2>
-        <button id="btnClearHistory" class="text-sm text-slate-500 hover:text-slate-700">Bersihkan</button>
+        <div class="flex gap-2">
+          <button id="btnClearHistory" class="text-sm text-slate-500 hover:text-slate-700">Bersihkan</button>
+          <button id="btnDownloadPDF" class="text-sm text-emerald-600 hover:text-emerald-800 font-semibold">📄 Unduh Laporan PDF</button>
+        </div>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
@@ -87,6 +89,7 @@
               <th>Label</th>
               <th>Conf.</th>
               <th>File</th>
+              <th>Gambar</th>
             </tr>
           </thead>
           <tbody id="history"></tbody>
@@ -100,106 +103,124 @@
   </div>
 
 <script>
-  // Ganti dengan URL Flask kamu
   const API_URL = () => 'https://clinton-dizziest-misrely.ngrok-free.dev/predict';
+  const { jsPDF } = window.jspdf;
 
-  const dz = document.getElementById('dropzone');
-  const fileInput = document.getElementById('fileInput');
-  const btnPick = document.getElementById('btnPick');
-  const btnPredict = document.getElementById('btnPredict');
-  const btnReset = document.getElementById('btnReset');
-  const statusEl = document.getElementById('status');
-  const previewWrap = document.getElementById('previewWrap');
-  const previewImg = document.getElementById('previewImg');
-  const fileInfo = document.getElementById('fileInfo');
-  const labelId = document.getElementById('labelId');
-  const labelEn = document.getElementById('labelEn');
-  const confPct = document.getElementById('confPct');
-  const confBar = document.getElementById('confBar');
-  const resMain = document.getElementById('resMain');
-  const resTop3 = document.getElementById('resTop3');
-  const resInfo = document.getElementById('resInfo');
-  const resRaw = document.getElementById('resRaw');
-  const histTbody = document.getElementById('history');
-  const btnClearHistory = document.getElementById('btnClearHistory');
+  const dz=document.getElementById('dropzone');
+  const fileInput=document.getElementById('fileInput');
+  const btnPick=document.getElementById('btnPick');
+  const btnPredict=document.getElementById('btnPredict');
+  const btnReset=document.getElementById('btnReset');
+  const statusEl=document.getElementById('status');
+  const previewWrap=document.getElementById('previewWrap');
+  const previewImg=document.getElementById('previewImg');
+  const fileInfo=document.getElementById('fileInfo');
+  const labelId=document.getElementById('labelId');
+  const labelEn=document.getElementById('labelEn');
+  const confPct=document.getElementById('confPct');
+  const confBar=document.getElementById('confBar');
+  const resMain=document.getElementById('resMain');
+  const resTop3=document.getElementById('resTop3');
+  const resInfo=document.getElementById('resInfo');
+  const histTbody=document.getElementById('history');
+  const btnClearHistory=document.getElementById('btnClearHistory');
+  const btnDownloadPDF=document.getElementById('btnDownloadPDF');
 
-  let currentFile = null, chart = null;
+  let currentFile=null, chart=null, historyData=[];
 
-  function toast(msg){ statusEl.textContent = msg; setTimeout(()=>statusEl.textContent='', 3000); }
-  function fmtPct(x){ return (x*100).toFixed(2) + '%'; }
-  function humanSize(bytes){ const u=['B','KB','MB']; let i=0; while(bytes>=1024&&i<u.length-1){bytes/=1024;i++;} return bytes.toFixed(1)+' '+u[i]; }
+  function toast(msg){statusEl.textContent=msg;setTimeout(()=>statusEl.textContent='',3000);}
+  function fmtPct(x){return (x*100).toFixed(2)+'%';}
+  function humanSize(bytes){const u=['B','KB','MB'];let i=0;while(bytes>=1024&&i<u.length-1){bytes/=1024;i++;}return bytes.toFixed(1)+' '+u[i];}
+
+  const infoMap={
+    "Bercak Bakteri":{desc:"Penyakit ini disebabkan oleh bakteri <em>Xanthomonas campestris</em>. Gejalanya berupa bercak cokelat gelap pada daun yang lama-kelamaan mengering dan berlubang.",advice:"Gunakan benih sehat, semprotkan bakterisida berbasis tembaga, dan hindari penyiraman berlebihan."},
+    "Hawar Daun Dini":{desc:"Disebabkan oleh jamur <em>Alternaria solani</em>. Muncul bercak cokelat kehitaman berbentuk lingkaran konsentris pada daun tua.",advice:"Lakukan rotasi tanaman, buang daun terinfeksi, serta gunakan fungisida berbahan mankozeb atau klorotalonil."},
+    "Hawar Daun (Late blight)":{desc:"Penyakit berat akibat <em>Phytophthora infestans</em>. Menyebabkan bercak gelap berair dan cepat menyebar ke seluruh daun bahkan buah.",advice:"Gunakan benih sehat, semprot fungisida sistemik preventif, dan hindari kelembapan tinggi."},
+    "Jamur Daun (Leaf Mold)":{desc:"Disebabkan oleh jamur <em>Cladosporium fulvum</em>. Gejalanya berupa bercak kuning di atas daun dan lapisan beludru hijau keabu-abuan di bawah daun.",advice:"Perbaiki ventilasi rumah tanam, kurangi kelembapan, serta semprot fungisida preventif."},
+    "Bercak Daun Septoria":{desc:"Jamur <em>Septoria lycopersici</em> menyebabkan bercak kecil berwarna abu-abu dengan tepi gelap pada daun bawah.",advice:"Hindari cipratan air ke daun, buang daun sakit, dan semprotkan fungisida kontak."},
+    "Tungau Laba-laba Dua Bintik":{desc:"Hama tungau menyebabkan daun menguning, kering, dan terdapat jaring halus di permukaan bawah daun.",advice:"Semprot air pada bagian bawah daun secara rutin dan gunakan akarisida bila serangan berat."},
+    "Bercak Target":{desc:"Jamur <em>Corynespora cassiicola</em> menimbulkan bercak cokelat berbentuk seperti target (lingkaran konsentris).",advice:"Sanitasi lahan, hindari kelembapan tinggi, dan gunakan fungisida protektif."},
+    "Virus Kuning Keriting Daun Tomat (TYLCV)":{desc:"Disebabkan oleh virus TYLCV yang ditularkan oleh kutu kebul. Daun menggulung, menebal, dan pertumbuhan tanaman terhambat.",advice:"Kendalikan vektor dengan perangkap kuning atau insektisida, serta gunakan varietas tahan virus."},
+    "Virus Mosaik Tomat (ToMV)":{desc:"Penyakit virus yang menyebabkan pola mosaik hijau muda-tua pada daun dan pertumbuhan tanaman menjadi kerdil.",advice:"Gunakan benih bebas virus, bersihkan alat pertanian dengan desinfektan, dan cabut tanaman yang terinfeksi."},
+    "Sehat":{desc:"Tanaman tampak hijau segar tanpa gejala penyakit atau kerusakan fisik.",advice:"Pertahankan perawatan tanaman secara rutin, pemupukan seimbang, dan monitoring lingkungan tumbuh."},
+    "Bukan daun tomat / Tidak dikenali":{desc:"Sistem mendeteksi gambar yang tidak menyerupai daun tomat atau objek tidak relevan.",advice:"Pastikan gambar fokus pada daun tomat dengan pencahayaan cukup dan latar belakang netral."}
+  };
 
   ['dragenter','dragover'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.classList.add('dragover');}));
   ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.classList.remove('dragover');}));
-  dz.addEventListener('drop', e=>{ const f=e.dataTransfer.files[0]; if(f) setFile(f); });
-  dz.addEventListener('click', ()=> fileInput.click());
-  btnPick.addEventListener('click', ()=> fileInput.click());
-  fileInput.addEventListener('change', e=>{ const f=e.target.files[0]; if(f) setFile(f); });
+  dz.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)setFile(f);});
+  dz.addEventListener('click',()=>fileInput.click());
+  btnPick.addEventListener('click',()=>fileInput.click());
+  fileInput.addEventListener('change',e=>{const f=e.target.files[0];if(f)setFile(f);});
 
-  async function setFile(f){
-    if(!f.type.startsWith('image/')) return toast('File harus gambar.');
+  function setFile(f){
+    if(!f.type.startsWith('image/'))return toast('File harus gambar.');
     currentFile=f;
     const url=URL.createObjectURL(f);
-    previewImg.src=url; previewWrap.classList.remove('hidden');
+    previewImg.src=url;previewWrap.classList.remove('hidden');
     fileInfo.textContent=`${f.name} • ${f.type} • ${humanSize(f.size)}`;
     btnPredict.disabled=false;
-    resMain.classList.add('hidden'); resTop3.classList.add('hidden'); resInfo.classList.add('hidden');
   }
 
-  btnReset.onclick=()=>{ fileInput.value=''; previewWrap.classList.add('hidden'); btnPredict.disabled=true;
-    resMain.classList.add('hidden'); resTop3.classList.add('hidden'); resInfo.classList.add('hidden'); labelId.textContent=''; labelEn.textContent='';
-  };
-
-  btnClearHistory.onclick=()=>{ histTbody.innerHTML=''; };
-
-  const infoMap={ /* sama seperti versi sebelumnya */ 
-    "Bercak Bakteri":{desc:"Disebabkan oleh bakteri *Xanthomonas campestris*, menimbulkan bercak gelap pada daun dan buah.",advice:"Gunakan benih sehat, hindari kelembapan berlebih, dan aplikasikan bakterisida tembaga bila perlu."},
-    "Hawar Daun Dini":{desc:"Jamur *Alternaria solani* menyebabkan bercak cokelat konsentris di daun tua.",advice:"Rotasi tanaman, sanitasi daun terinfeksi, fungisida sesuai anjuran."},
-    "Hawar Daun (Late blight)":{desc:"Disebabkan oleh *Phytophthora infestans*, menyebabkan bercak basah, cepat menyebar.",advice:"Buang daun/bagian terinfeksi, gunakan fungisida preventif."},
-    "Jamur Daun (Leaf Mold)":{desc:"Jamur *Cladosporium fulvum* → bercak kuning, lapisan beludru hijau di bawah daun.",advice:"Perbaiki ventilasi, kurangi kelembapan, pilih varietas tahan."},
-    "Bercak Daun Septoria":{desc:"Jamur *Septoria lycopersici* → bintik abu-abu kecil bertepi gelap.",advice:"Pangkas daun bawah, rotasi, fungisida jika parah."},
-    "Tungau Laba-laba Dua Bintik":{desc:"Hama tungau → daun menguning & kering.",advice:"Semprot bagian bawah daun dengan air, gunakan akarisida bila perlu."},
-    "Bercak Target":{desc:"Jamur *Corynespora cassiicola* → bercak seperti target lingkaran.",advice:"Sanitasi kebun, rotasi non-inang, fungisida jika perlu."},
-    "Virus Kuning Keriting Daun Tomat (TYLCV)":{desc:"Daun menguning & menggulung akibat virus TYLCV.",advice:"Kendalikan kutu kebul, gunakan mulsa perak, tanam varietas toleran."},
-    "Virus Mosaik Tomat (ToMV)":{desc:"Pola mosaik hijau muda-tua, pertumbuhan terhambat.",advice:"Benih bebas virus, disinfeksi alat, buang tanaman terinfeksi."},
-    "Sehat":{desc:"Tidak tampak gejala signifikan.",advice:"Pertahankan pemupukan & sanitasi rutin."},
-    "Bukan daun tomat / Tidak dikenali":{desc:"Gambar bukan daun tomat atau sulit dikenali.",advice:"Pastikan foto adalah daun tomat, fokus jelas, pencahayaan baik."}
-  };
+  btnReset.onclick=()=>{fileInput.value='';previewWrap.classList.add('hidden');btnPredict.disabled=true;};
 
   btnPredict.onclick=async()=>{
-    if(!currentFile) return toast('Pilih gambar dulu.');
-    const fd=new FormData(); fd.append('file',currentFile,currentFile.name);
-    btnPredict.disabled=true; toast('Memproses...');
+    if(!currentFile)return toast('Pilih gambar dulu.');
+    const fd=new FormData();fd.append('file',currentFile,currentFile.name);
+    btnPredict.disabled=true;toast('Memproses...');
     try{
       const res=await fetch(API_URL(),{method:'POST',body:fd});
-      if(!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       const j=await res.json();
-
-      labelId.textContent=j.label_id; labelEn.textContent=`(${j.label_en})`;
-      const conf=j.confidence||0; confPct.textContent=fmtPct(conf); confBar.style.width=(conf*100)+'%';
+      labelId.textContent=j.label_id;labelEn.textContent=`(${j.label_en})`;
+      const conf=j.confidence||0;confPct.textContent=fmtPct(conf);confBar.style.width=(conf*100)+'%';
       resMain.classList.remove('hidden');
-
-      if(j.top3){
-        const labels=j.top3.map(x=>x.label_id); const data=j.top3.map(x=>x.confidence);
-        const ctx=document.getElementById('chart').getContext('2d');
-        if(chart) chart.destroy();
-        chart=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Confidence',data}]},
-        options:{responsive:true,plugins:{legend:{display:false}},
-        scales:{y:{beginAtZero:true,ticks:{callback:v=>(v*100)+'%'}}}}});
-        resTop3.classList.remove('hidden');
-      }
-
       const info=infoMap[j.label_id];
-      if(info){resInfo.innerHTML=`<strong>${j.label_id}</strong>: ${info.desc}<br><br><em>Saran:</em> ${info.advice}`;resInfo.classList.remove('hidden');}
+      if(info){resInfo.innerHTML=`<strong>${j.label_id}</strong><br>${info.desc}<br><br><strong>Saran Penanganan:</strong> ${info.advice}`;resInfo.classList.remove('hidden');}
 
       const tr=document.createElement('tr');
-      tr.innerHTML=`<td class='py-2 text-slate-500'>${new Date().toLocaleString()}</td><td>${j.label_id}</td><td>${fmtPct(conf)}</td><td>${currentFile.name}</td>`;
+      const url=URL.createObjectURL(currentFile);
+      tr.innerHTML=`<td>${new Date().toLocaleString()}</td><td>${j.label_id}</td><td>${fmtPct(conf)}</td><td>${currentFile.name}</td><td><img src="${url}" width="60"></td>`;
       histTbody.prepend(tr);
 
+      historyData.push({fileName:currentFile.name,img:url,label:j.label_id,conf:fmtPct(conf),info:info});
       toast('Prediksi selesai ✅');
-    }catch(e){ toast('Gagal melakukan prediksi.'); console.error(e); }
-    finally{ btnPredict.disabled=false; }
+    }catch(e){toast('Gagal prediksi.');console.error(e);}
+    finally{btnPredict.disabled=false;}
   };
+
+  btnClearHistory.onclick=()=>{histTbody.innerHTML='';historyData=[];};
+
+  btnDownloadPDF.onclick=async()=>{
+    if(historyData.length===0)return toast('Belum ada data riwayat.');
+    const pdf=new jsPDF('p','pt','a4');
+    pdf.setFontSize(14);
+    pdf.text("Laporan Hasil Klasifikasi Daun Tomat",40,40);
+    pdf.setFontSize(10);
+    pdf.text("Dibuat otomatis oleh sistem klasifikasi berbasis MobileNetV2.",40,55);
+
+    let y=80;
+    for(let i=0;i<historyData.length;i++){
+      const h=historyData[i];
+      pdf.text(`${i+1}. File: ${h.fileName}`,40,y);
+      pdf.text(`Label: ${h.label}`,40,y+15);
+      pdf.text(`Kepercayaan: ${h.conf}`,40,y+30);
+      pdf.text(`Deskripsi: ${h.info.desc.replace(/<[^>]+>/g,'')}`,40,y+45,{maxWidth:500});
+      pdf.text(`Saran: ${h.info.advice}`,40,y+70,{maxWidth:500});
+
+      const img=await loadImage(h.img);
+      const canvas=document.createElement('canvas');
+      canvas.width=img.width;canvas.height=img.height;
+      canvas.getContext('2d').drawImage(img,0,0);
+      const dataURL=canvas.toDataURL('image/jpeg',0.5);
+      pdf.addImage(dataURL,'JPEG',400,y-10,120,90);
+
+      y+=120;
+      if(y>700){pdf.addPage();y=50;}
+    }
+    pdf.save("Laporan_Prediksi_Tomat.pdf");
+  };
+
+  function loadImage(url){return new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=url;});}
 </script>
 </body>
 </html>
