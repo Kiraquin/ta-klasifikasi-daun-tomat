@@ -18,7 +18,7 @@
   <div class="max-w-5xl mx-auto p-6">
     <header class="mb-6 text-center">
       <h1 class="text-3xl font-semibold">🍅 Klasifikasi Penyakit Daun Tomat</h1>
-      <p class="text-slate-600">Deteksi otomatis menggunakan model <strong>MobileNetV2</strong> – hasil prediksi, grafik, dan laporan PDF siap unduh.</p>
+      <p class="text-slate-600">Model <strong>MobileNetV2</strong> digunakan untuk mengidentifikasi penyakit daun tomat secara otomatis.</p>
     </header>
 
     <section class="grid md:grid-cols-2 gap-6">
@@ -130,11 +130,17 @@
   function humanSize(bytes){const u=['B','KB','MB'];let i=0;while(bytes>=1024&&i<u.length-1){bytes/=1024;i++;}return bytes.toFixed(1)+' '+u[i];}
 
   const infoMap={
-    "Bercak Bakteri":{desc:"Penyakit ini disebabkan oleh bakteri Xanthomonas campestris. Gejalanya berupa bercak cokelat gelap pada daun yang lama-kelamaan mengering dan berlubang.",advice:"Gunakan benih sehat, semprotkan bakterisida berbasis tembaga, dan hindari penyiraman berlebihan."},
-    "Jamur Daun (Leaf Mold)":{desc:"Disebabkan oleh jamur Cladosporium fulvum. Gejalanya berupa bercak kuning di atas daun dan lapisan beludru hijau keabu-abuan di bawah daun.",advice:"Perbaiki ventilasi rumah tanam, kurangi kelembapan, serta semprot fungisida preventif."},
-    "Bercak Target":{desc:"Jamur Corynespora cassiicola menimbulkan bercak cokelat berbentuk seperti target (lingkaran konsentris).",advice:"Sanitasi lahan, hindari kelembapan tinggi, dan gunakan fungisida protektif."},
-    "Sehat":{desc:"Tanaman tampak hijau segar tanpa gejala penyakit atau kerusakan fisik.",advice:"Pertahankan perawatan tanaman secara rutin, pemupukan seimbang, dan monitoring lingkungan tumbuh."},
-    "Bukan daun tomat / Tidak dikenali":{desc:"Sistem mendeteksi gambar yang tidak menyerupai daun tomat atau objek tidak relevan.",advice:"Pastikan gambar fokus pada daun tomat dengan pencahayaan cukup dan latar belakang netral."}
+    "Bercak Bakteri":{desc:"Disebabkan oleh bakteri Xanthomonas campestris. Gejala berupa bercak gelap pada daun yang mengering dan berlubang.",advice:"Gunakan benih sehat dan semprot bakterisida berbasis tembaga."},
+    "Hawar Daun Dini":{desc:"Jamur Alternaria solani menyebabkan bercak gelap konsentris pada daun tua.",advice:"Buang daun terinfeksi dan gunakan fungisida seperti mankozeb atau klorotalonil."},
+    "Hawar Daun (Late blight)":{desc:"Penyakit berat akibat Phytophthora infestans. Daun muncul bercak gelap berair yang cepat menyebar.",advice:"Gunakan fungisida sistemik dan hindari kelembapan tinggi."},
+    "Jamur Daun (Leaf Mold)":{desc:"Disebabkan oleh jamur Cladosporium fulvum, menimbulkan bercak kuning di atas daun dan lapisan hijau keabu-abuan di bawah daun.",advice:"Perbaiki ventilasi rumah tanam dan semprot fungisida preventif."},
+    "Bercak Daun Septoria":{desc:"Jamur Septoria lycopersici menimbulkan bercak kecil abu-abu dengan tepi gelap pada daun bawah.",advice:"Hindari cipratan air ke daun dan semprotkan fungisida kontak."},
+    "Bercak Target":{desc:"Jamur Corynespora cassiicola menimbulkan bercak cokelat berbentuk target.",advice:"Sanitasi lahan dan gunakan fungisida protektif."},
+    "Tungau Laba-laba Dua Bintik":{desc:"Hama tungau menyebabkan daun menguning dan terdapat jaring halus di permukaan bawah.",advice:"Gunakan akarisida bila serangan berat."},
+    "Virus Kuning Keriting Daun Tomat (TYLCV)":{desc:"Virus TYLCV menyebabkan daun menggulung dan pertumbuhan terhambat.",advice:"Gunakan varietas tahan dan kendalikan kutu kebul."},
+    "Virus Mosaik Tomat (ToMV)":{desc:"Virus ToMV menyebabkan pola mosaik hijau muda-tua pada daun.",advice:"Gunakan benih bebas virus dan cabut tanaman terinfeksi."},
+    "Sehat":{desc:"Daun tampak hijau segar tanpa gejala penyakit.",advice:"Lanjutkan perawatan dan pemupukan rutin."},
+    "Bukan daun tomat / Tidak dikenali":{desc:"Sistem mendeteksi gambar bukan daun tomat atau objek tidak relevan.",advice:"Pastikan gambar fokus pada daun tomat dengan pencahayaan cukup."}
   };
 
   ['dragenter','dragover'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.classList.add('dragover');}));
@@ -201,12 +207,19 @@
     pdf.setFontSize(12);
     pdf.text("LAPORAN HASIL KLASIFIKASI PENYAKIT DAUN TOMAT",200,60,{align:"center"});
     pdf.setFontSize(10);
-    pdf.text("Nama: Ade Tri Satria   |   NIM: 04322025   |   Program Studi: Teknik Informatika",40,85);
-    pdf.text("Model: MobileNetV2 - Flask API",40,100);
+    pdf.text("Nama: Ade Tri Satria   |   NIM: 04322025   |   Prodi: Teknik Informatika",40,85);
+    pdf.text("Model: MobileNetV2 (Flask API)",40,100);
 
     let y=130;
     for(let i=0;i<historyData.length;i++){
       const h=historyData[i];
+      const img=await loadImage(h.img);
+      const canvas=document.createElement('canvas');
+      canvas.width=img.width;canvas.height=img.height;
+      canvas.getContext('2d').drawImage(img,0,0);
+      const dataURL=canvas.toDataURL('image/jpeg',0.6);
+      pdf.addImage(dataURL,'JPEG',60,y,150,110);
+      y+=130;
       pdf.setFontSize(11);
       pdf.text(`${i+1}. File: ${h.fileName}`,40,y);
       pdf.setFontSize(10);
@@ -214,18 +227,11 @@
       pdf.text(`Kepercayaan: ${h.conf}`,40,y+30);
       const desc=pdf.splitTextToSize("Deskripsi: "+h.info.desc,460);
       const adv=pdf.splitTextToSize("Saran: "+h.info.advice,460);
-      pdf.text(desc,40,y+45);
-      pdf.text(adv,40,y+65+(desc.length*10));
+      pdf.text(desc,40,y+50);
+      pdf.text(adv,40,y+70+(desc.length*10));
 
-      const img=await loadImage(h.img);
-      const canvas=document.createElement('canvas');
-      canvas.width=img.width;canvas.height=img.height;
-      canvas.getContext('2d').drawImage(img,0,0);
-      const dataURL=canvas.toDataURL('image/jpeg',0.6);
-      pdf.addImage(dataURL,'JPEG',400,y-10,120,90);
-
-      y+=120+(desc.length+adv.length)*6;
-      if(y>720){pdf.addPage();y=50;}
+      y+=100+(desc.length+adv.length)*6;
+      if(y>720){pdf.addPage();y=60;}
     }
     pdf.save("Laporan_Klasifikasi_Tomat_AdeTriSatria.pdf");
   };
