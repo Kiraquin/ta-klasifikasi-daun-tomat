@@ -3,239 +3,655 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Klasifikasi Penyakit Daun Tomat - Ade Tri Satria</title>
+  <title>Klasifikasi Penyakit Daun Tomat</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <style>
-    .dropzone { border:2px dashed #cbd5e1; transition:0.2s; }
-    .dropzone.dragover { border-color:#0ea5e9; background:#f0f9ff }
-    .meter { height: 10px; background:#e2e8f0; border-radius:9999px; overflow:hidden }
-    .meter > span { display:block; height:100%; background:#0ea5e9 }
+    body { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .dropzone {
+      border: 1.8px dashed #cbd5e1;
+      background: #f8fafc;
+      transition: .18s ease;
+    }
+    .dropzone.dragover {
+      border-color: #2563eb;
+      background: #eff6ff;
+      transform: translateY(-1px);
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      padding: .28rem .62rem;
+      border-radius: 9999px;
+      font-size: .72rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .chip-ok { background: #dcfce7; color: #166534; }
+    .chip-warn { background: #fef3c7; color: #92400e; }
+    .chip-bad { background: #fee2e2; color: #991b1b; }
+    .chip-info { background: #dbeafe; color: #1d4ed8; }
+    .bar {
+      height: 9px;
+      border-radius: 9999px;
+      background: #e2e8f0;
+      overflow: hidden;
+    }
+    .bar > span {
+      display: block;
+      height: 100%;
+      border-radius: 9999px;
+      background: linear-gradient(90deg, #2563eb, #06b6d4);
+      transition: width .25s ease;
+    }
   </style>
 </head>
-<body class="bg-slate-50 text-slate-800">
-  <div class="max-w-5xl mx-auto p-6">
-    <header class="mb-6 text-center">
-      <h1 class="text-3xl font-semibold">🍅 Klasifikasi Penyakit Daun Tomat</h1>
-      <p class="text-slate-600">Model <strong>MobileNetV2</strong> digunakan untuk mengidentifikasi penyakit daun tomat secara otomatis.</p>
+
+<body class="bg-slate-100 text-slate-800">
+  <div class="max-w-6xl mx-auto px-4 py-5">
+    <!-- Header -->
+    <header class="mb-4 rounded-2xl bg-white border border-slate-200 shadow-sm px-5 py-4">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p class="text-xs font-bold text-blue-600 uppercase tracking-wide">Sistem Klasifikasi</p>
+          <h1 class="text-2xl md:text-3xl font-extrabold text-slate-900">Penyakit Daun Tomat</h1>
+          <p class="mt-1 max-w-3xl text-sm text-slate-600">
+            Purwarupa prediksi penyakit daun tomat berbasis MobileNetV2 dengan kelas penolak Unknown/non-daun tomat.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+          <div class="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
+            <div class="text-slate-500">Model</div>
+            <div class="font-bold text-slate-800">MobileNetV2</div>
+          </div>
+          <div class="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
+            <div class="text-slate-500">Input</div>
+            <div class="font-bold text-slate-800">224×224</div>
+          </div>
+          <div class="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
+            <div class="text-slate-500">Output</div>
+            <div class="font-bold text-slate-800">Top-3</div>
+          </div>
+          <div class="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
+            <div class="text-slate-500">Validasi</div>
+            <div class="font-bold text-slate-800">Threshold</div>
+          </div>
+        </div>
+      </div>
     </header>
 
-    <section class="grid md:grid-cols-2 gap-6">
-      <!-- Upload -->
-      <div class="p-5 bg-white rounded-2xl shadow">
-        <h2 class="font-semibold mb-2">1️⃣ Unggah Gambar</h2>
-        <div id="dropzone" class="dropzone rounded-2xl p-6 flex flex-col items-center justify-center text-slate-500">
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path d="M3 15a4 4 0 0 0 4 4h10a4 4 0 1 0 0-8h-1.26A8 8 0 1 0 3 15z"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/>
+    <!-- Disclaimer: selalu terlihat agar sesuai dengan penjelasan pada laporan -->
+    <section
+      role="note"
+      aria-label="Catatan penggunaan sistem"
+      class="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 shadow-sm"
+    >
+      <div class="flex items-start gap-3">
+        <div class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+            <path d="M10.3 3.6 2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z" />
           </svg>
-          <p class="mb-2">Drag & drop atau klik untuk memilih file gambar daun tomat</p>
-          <input id="fileInput" type="file" accept="image/*" class="hidden" />
-          <button id="btnPick" class="mt-2 px-3 py-2 rounded-xl bg-sky-500 text-white">Pilih File</button>
         </div>
-        <div id="previewWrap" class="mt-4 hidden">
-          <p class="text-sm text-slate-600 mb-1">Pratinjau</p>
-          <img id="previewImg" class="rounded-xl border max-h-72 object-contain" alt="preview" />
-          <div class="mt-3 text-xs text-slate-500" id="fileInfo"></div>
+        <div>
+          <h2 class="text-sm font-extrabold text-amber-900">Catatan Penggunaan</h2>
+          <p class="mt-0.5 text-xs leading-relaxed text-amber-800">
+            Hasil prediksi merupakan indikasi awal dan bukan pengganti pemeriksaan langsung oleh ahli pertanian.
+            Gunakan hasil sistem sebagai informasi pendukung untuk menentukan langkah pemeriksaan berikutnya.
+          </p>
         </div>
-        <div class="mt-4 flex flex-wrap gap-2">
-          <button id="btnPredict" class="px-4 py-2 rounded-xl bg-emerald-600 text-white disabled:opacity-50" disabled>Prediksi</button>
-          <button id="btnReset" class="px-4 py-2 rounded-xl bg-slate-200">Reset</button>
-        </div>
-        <p id="status" class="mt-3 text-sm text-slate-600"></p>
-      </div>
-
-      <!-- Hasil -->
-      <div class="p-5 bg-white rounded-2xl shadow">
-        <h2 class="font-semibold mb-2">2️⃣ Hasil Prediksi</h2>
-        <div id="resMain" class="hidden space-y-3">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-sm text-slate-500">Label:</span>
-            <span id="labelId" class="inline-flex items-center px-2 py-1 rounded-full bg-sky-100 text-sky-700 text-sm font-medium"></span>
-            <span id="labelEn" class="text-xs text-slate-400"></span>
-          </div>
-          <div>
-            <div class="flex justify-between text-sm"><span>Kepercayaan</span><span id="confPct">0%</span></div>
-            <div class="meter mt-1"><span id="confBar" style="width:0%"></span></div>
-          </div>
-        </div>
-
-        <div id="resTop3" class="hidden mt-4">
-          <h3 class="font-medium">Top-3 Kelas</h3>
-          <canvas id="chart" height="140"></canvas>
-        </div>
-
-        <div id="resInfo" class="hidden mt-2 p-3 rounded-xl bg-blue-50 border border-blue-100 text-sm text-slate-700"></div>
       </div>
     </section>
 
-    <!-- Riwayat -->
-    <section class="mt-6 p-5 bg-white rounded-2xl shadow" id="historySection">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-semibold">Riwayat Prediksi (sesi ini)</h2>
-        <div class="flex gap-2">
-          <button id="btnClearHistory" class="text-sm text-slate-500 hover:text-slate-700">🗑 Bersihkan</button>
-         <!-- <button id="btnDownloadPDF" class="text-sm text-emerald-600 hover:text-emerald-800 font-semibold">📄 Unduh Laporan PDF</button> -->
-        </div>
-      </div>
-      <div class="overflow-x-auto">
-        <table class="w-full text-sm">
-          <thead>
-            <tr class="text-left text-slate-500 border-b">
-              <th class="py-2">Waktu</th>
-              <th>Label</th>
-              <th>Conf.</th>
-              <th>File</th>
-              <th>Gambar</th>
-            </tr>
-          </thead>
-          <tbody id="history"></tbody>
-        </table>
-      </div>
-    </section>
+    <main class="grid gap-4 lg:grid-cols-12">
+      <!-- Kolom kiri -->
+      <section class="lg:col-span-5 space-y-4">
+        <!-- Upload -->
+        <div class="rounded-2xl bg-white border border-slate-200 shadow-sm p-4">
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <h2 class="text-lg font-extrabold text-slate-900">Unggah Citra</h2>
+              <p class="text-xs text-slate-500">Format: JPG, PNG, BMP, WEBP, TIF, TIFF.</p>
+            </div>
+            <span id="statusChip" class="chip chip-warn">Menunggu input</span>
+          </div>
 
-    <footer class="mt-10 text-xs text-slate-500 text-center">
-      <p>Tugas Akhir — Klasifikasi Daun Tomat (MobileNetV2 + Flask API) <br> Ade Tri Satria • NIM: 04322025 • Universitas Narotama</p>
+          <div id="dropzone" class="dropzone rounded-2xl px-4 py-5 text-center cursor-pointer">
+            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path d="M3 15a4 4 0 0 0 4 4h10a4 4 0 1 0 0-8h-1.26A8 8 0 1 0 3 15z" />
+                <path d="M12 12v9" />
+                <path d="m16 16-4-4-4 4" />
+              </svg>
+            </div>
+            <h3 class="mt-3 font-bold text-slate-900">Pilih atau drag gambar</h3>
+            <p class="mt-1 text-xs text-slate-500">Gunakan citra daun tomat yang jelas dan fokus.</p>
+            <input id="fileInput" type="file" accept="image/*" class="hidden" />
+
+            <div class="mt-4 flex justify-center gap-2">
+              <button id="btnPick" type="button" class="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
+                Pilih File
+              </button>
+              <button id="btnReset" type="button" class="rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div id="previewWrap" class="hidden mt-4">
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+              <div class="flex items-start justify-between gap-3 mb-2">
+                <div>
+                  <h3 class="text-sm font-bold text-slate-900">Pratinjau</h3>
+                  <p id="fileInfo" class="text-xs text-slate-500"></p>
+                </div>
+                <button id="btnPredict" type="button" disabled class="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700">
+                  Prediksi
+                </button>
+              </div>
+              <img id="previewImg" class="w-full max-h-[330px] object-contain rounded-xl bg-white border border-slate-200" alt="Pratinjau gambar" />
+            </div>
+          </div>
+
+          <p id="statusMsg" class="mt-3 text-xs text-slate-600"></p>
+        </div>
+
+        <!-- Ringkasan alur -->
+        <div class="rounded-2xl bg-white border border-slate-200 shadow-sm p-4">
+          <h2 class="text-base font-extrabold text-slate-900">Alur Sistem</h2>
+          <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div class="rounded-xl bg-slate-50 border border-slate-200 p-3">
+              <div class="font-bold text-slate-900">1. Validasi</div>
+              <div class="mt-1 text-slate-500">Ekstensi, ukuran, dan integritas file.</div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-200 p-3">
+              <div class="font-bold text-slate-900">2. Preprocess</div>
+              <div class="mt-1 text-slate-500">RGB, resize 224×224, normalisasi.</div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-200 p-3">
+              <div class="font-bold text-slate-900">3. Inferensi</div>
+              <div class="mt-1 text-slate-500">Model menghasilkan probabilitas kelas.</div>
+            </div>
+            <div class="rounded-xl bg-slate-50 border border-slate-200 p-3">
+              <div class="font-bold text-slate-900">4. Keputusan</div>
+              <div class="mt-1 text-slate-500">Diterima atau ditolak oleh threshold.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Kolom kanan -->
+      <section class="lg:col-span-7">
+        <div class="rounded-2xl bg-white border border-slate-200 shadow-sm p-4 min-h-full">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <h2 class="text-lg font-extrabold text-slate-900">Hasil Prediksi</h2>
+              <p class="text-xs text-slate-500">Label, confidence, deskripsi, saran, top-3, dan metadata file.</p>
+            </div>
+            <span id="resultBadge" class="chip chip-warn">Belum ada hasil</span>
+          </div>
+
+          <div id="resultEmpty" class="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center">
+            <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-400 border border-slate-200">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path d="M12 8v4l3 3" />
+                <circle cx="12" cy="12" r="9" />
+              </svg>
+            </div>
+            <h3 class="mt-3 font-bold text-slate-700">Belum ada hasil</h3>
+            <p class="mt-1 text-sm text-slate-500">Unggah gambar, lalu klik tombol prediksi.</p>
+          </div>
+
+          <div id="resultWrap" class="hidden mt-4 space-y-3">
+            <!-- Baris utama -->
+            <div id="mainCard" class="rounded-2xl border border-slate-200 p-4">
+              <div class="grid gap-4 md:grid-cols-5">
+                <div class="md:col-span-3">
+                  <div class="text-xs uppercase tracking-wide text-slate-500 font-bold">Prediksi Utama</div>
+                  <div id="labelId" class="mt-2 text-2xl font-extrabold text-slate-900">-</div>
+                  <div id="labelEn" class="mt-1 text-xs text-slate-500">-</div>
+                </div>
+
+                <div class="md:col-span-2 rounded-xl bg-slate-50 border border-slate-200 p-3">
+                  <div class="flex justify-between text-sm">
+                    <span class="text-slate-500">Confidence</span>
+                    <span id="confPct" class="font-extrabold text-slate-900">0%</span>
+                  </div>
+                  <div class="bar mt-2"><span id="confBar" style="width:0%"></span></div>
+                  <div id="thresholdText" class="mt-2 text-xs text-slate-500">-</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Penolakan -->
+            <div id="rejectCard" class="hidden rounded-2xl border p-4">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <div id="rejectTitle" class="font-extrabold"></div>
+                  <p id="rejectDesc" class="mt-1 text-sm text-slate-600"></p>
+                </div>
+                <span id="rejectChip" class="chip chip-bad">Ditolak</span>
+              </div>
+            </div>
+
+            <!-- Deskripsi, saran, top-3 dibuat horizontal -->
+            <div class="grid gap-3 lg:grid-cols-2">
+              <div class="rounded-2xl border border-slate-200 p-4">
+                <h3 class="font-extrabold text-slate-900">Deskripsi</h3>
+                <p id="deskripsiText" class="mt-2 text-sm leading-relaxed text-slate-600">-</p>
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 p-4">
+                <h3 class="font-extrabold text-slate-900">Saran</h3>
+                <p id="saranText" class="mt-2 text-sm leading-relaxed text-slate-600">-</p>
+              </div>
+            </div>
+
+            <div class="grid gap-3 lg:grid-cols-2">
+              <div class="rounded-2xl border border-slate-200 p-4">
+                <div class="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 class="font-extrabold text-slate-900">Top-3 Probabilitas</h3>
+                    <p class="text-xs text-slate-500">Tiga kelas tertinggi.</p>
+                  </div>
+                  <span class="chip chip-ok">Top-3</span>
+                </div>
+                <div id="top3List" class="mt-3 space-y-2"></div>
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 p-4">
+                <h3 class="font-extrabold text-slate-900">Metadata & Catatan</h3>
+
+                <dl class="mt-3 space-y-2 text-xs">
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-slate-500">File</dt>
+                    <dd id="metaFilename" class="font-semibold text-right">-</dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-slate-500">Ukuran</dt>
+                    <dd id="metaSize" class="font-semibold text-right">-</dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-slate-500">Tipe</dt>
+                    <dd id="metaType" class="font-semibold text-right">-</dd>
+                  </div>
+                </dl>
+
+                <div class="mt-3 rounded-xl bg-slate-50 border border-slate-200 p-3">
+                  <div class="text-xs font-bold text-slate-500 uppercase tracking-wide">Catatan Sistem</div>
+                  <p id="systemNote" class="mt-1 text-xs leading-relaxed text-slate-600">
+                    Hasil prediksi akan ditolak jika model mengidentifikasi kelas penolak atau confidence berada di bawah threshold. Hasil sistem merupakan indikasi awal dan bukan pengganti pemeriksaan ahli pertanian.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="mt-4 text-center text-xs text-slate-500">
+      Purwarupa TA — MobileNetV2 + Flask API. Hasil prediksi merupakan indikasi awal.
     </footer>
   </div>
 
 <script>
-  const API_URL = () => 'https://clinton-dizziest-misrely.ngrok-free.dev/predict';
-  const { jsPDF } = window.jspdf;
+  // ============================================================
+  // KONFIGURASI API
+  // ============================================================
+  // Lokal:
+  const API_BASE_URL = 'http://localhost:8000';
 
-  const dz=document.getElementById('dropzone');
-  const fileInput=document.getElementById('fileInput');
-  const btnPick=document.getElementById('btnPick');
-  const btnPredict=document.getElementById('btnPredict');
-  const btnReset=document.getElementById('btnReset');
-  const statusEl=document.getElementById('status');
-  const previewWrap=document.getElementById('previewWrap');
-  const previewImg=document.getElementById('previewImg');
-  const fileInfo=document.getElementById('fileInfo');
-  const labelId=document.getElementById('labelId');
-  const labelEn=document.getElementById('labelEn');
-  const confPct=document.getElementById('confPct');
-  const confBar=document.getElementById('confBar');
-  const resMain=document.getElementById('resMain');
-  const resTop3=document.getElementById('resTop3');
-  const resInfo=document.getElementById('resInfo');
-  const histTbody=document.getElementById('history');
-  const btnClearHistory=document.getElementById('btnClearHistory');
-  const btnDownloadPDF=document.getElementById('btnDownloadPDF');
+  // Jika memakai ngrok, ganti menjadi URL ngrok tanpa /predict, contoh:
+  // const API_BASE_URL = 'https://clinton-dizziest-misrely.ngrok-free.dev';
 
-  let currentFile=null, chart=null, historyData=[];
+  const API_URL = () => `${API_BASE_URL}/predict`;
 
-  function toast(msg){statusEl.textContent=msg;setTimeout(()=>statusEl.textContent='',3000);}
-  function fmtPct(x){return (x*100).toFixed(2)+'%';}
-  function humanSize(bytes){const u=['B','KB','MB'];let i=0;while(bytes>=1024&&i<u.length-1){bytes/=1024;i++;}return bytes.toFixed(1)+' '+u[i];}
+  // ============================================================
+  // DOM
+  // ============================================================
+  const dz = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const btnPick = document.getElementById('btnPick');
+  const btnReset = document.getElementById('btnReset');
+  const btnPredict = document.getElementById('btnPredict');
 
-  const infoMap={
-    "Bercak Bakteri":{desc:"Disebabkan oleh bakteri Xanthomonas campestris. Gejala berupa bercak gelap pada daun yang mengering dan berlubang.",advice:"Gunakan benih sehat dan semprot bakterisida berbasis tembaga."},
-    "Hawar Daun Dini":{desc:"Jamur Alternaria solani menyebabkan bercak gelap konsentris pada daun tua.",advice:"Buang daun terinfeksi dan gunakan fungisida seperti mankozeb atau klorotalonil."},
-    "Hawar Daun (Late blight)":{desc:"Penyakit berat akibat Phytophthora infestans. Daun muncul bercak gelap berair yang cepat menyebar.",advice:"Gunakan fungisida sistemik dan hindari kelembapan tinggi."},
-    "Jamur Daun (Leaf Mold)":{desc:"Disebabkan oleh jamur Cladosporium fulvum, menimbulkan bercak kuning di atas daun dan lapisan hijau keabu-abuan di bawah daun.",advice:"Perbaiki ventilasi rumah tanam dan semprot fungisida preventif."},
-    "Bercak Daun Septoria":{desc:"Jamur Septoria lycopersici menimbulkan bercak kecil abu-abu dengan tepi gelap pada daun bawah.",advice:"Hindari cipratan air ke daun dan semprotkan fungisida kontak."},
-    "Bercak Target":{desc:"Jamur Corynespora cassiicola menimbulkan bercak cokelat berbentuk target.",advice:"Sanitasi lahan dan gunakan fungisida protektif."},
-    "Tungau Laba-laba Dua Bintik":{desc:"Hama tungau menyebabkan daun menguning dan terdapat jaring halus di permukaan bawah.",advice:"Gunakan akarisida bila serangan berat."},
-    "Virus Kuning Keriting Daun Tomat (TYLCV)":{desc:"Virus TYLCV menyebabkan daun menggulung dan pertumbuhan terhambat.",advice:"Gunakan varietas tahan dan kendalikan kutu kebul."},
-    "Virus Mosaik Tomat (ToMV)":{desc:"Virus ToMV menyebabkan pola mosaik hijau muda-tua pada daun.",advice:"Gunakan benih bebas virus dan cabut tanaman terinfeksi."},
-    "Sehat":{desc:"Daun tampak hijau segar tanpa gejala penyakit.",advice:"Lanjutkan perawatan dan pemupukan rutin."},
-    "Bukan daun tomat / Tidak dikenali":{desc:"Sistem mendeteksi gambar bukan daun tomat atau objek tidak relevan.",advice:"Pastikan gambar fokus pada daun tomat dengan pencahayaan cukup."}
-  };
+  const previewWrap = document.getElementById('previewWrap');
+  const previewImg = document.getElementById('previewImg');
+  const fileInfo = document.getElementById('fileInfo');
 
-  ['dragenter','dragover'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.classList.add('dragover');}));
-  ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.classList.remove('dragover');}));
-  dz.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)setFile(f);});
-  dz.addEventListener('click',()=>fileInput.click());
-  btnPick.addEventListener('click',()=>fileInput.click());
-  fileInput.addEventListener('change',e=>{const f=e.target.files[0];if(f)setFile(f);});
+  const statusMsg = document.getElementById('statusMsg');
+  const statusChip = document.getElementById('statusChip');
+  const resultBadge = document.getElementById('resultBadge');
 
-  function setFile(f){
-    if(!f.type.startsWith('image/'))return toast('File harus gambar.');
-    currentFile=f;
-    const url=URL.createObjectURL(f);
-    previewImg.src=url;previewWrap.classList.remove('hidden');
-    fileInfo.textContent=`${f.name} • ${f.type} • ${humanSize(f.size)}`;
-    btnPredict.disabled=false;
+  const resultEmpty = document.getElementById('resultEmpty');
+  const resultWrap = document.getElementById('resultWrap');
+
+  const labelId = document.getElementById('labelId');
+  const labelEn = document.getElementById('labelEn');
+  const confPct = document.getElementById('confPct');
+  const confBar = document.getElementById('confBar');
+  const thresholdText = document.getElementById('thresholdText');
+
+  const rejectCard = document.getElementById('rejectCard');
+  const rejectTitle = document.getElementById('rejectTitle');
+  const rejectDesc = document.getElementById('rejectDesc');
+  const rejectChip = document.getElementById('rejectChip');
+
+  const deskripsiText = document.getElementById('deskripsiText');
+  const saranText = document.getElementById('saranText');
+  const top3List = document.getElementById('top3List');
+
+  const metaFilename = document.getElementById('metaFilename');
+  const metaSize = document.getElementById('metaSize');
+  const metaType = document.getElementById('metaType');
+  const systemNote = document.getElementById('systemNote');
+
+  let currentFile = null;
+
+  // ============================================================
+  // UTIL
+  // ============================================================
+  function fmtPct(x) {
+    return (Number(x || 0) * 100).toFixed(2) + '%';
   }
 
-  btnReset.onclick=()=>{fileInput.value='';previewWrap.classList.add('hidden');btnPredict.disabled=true;resMain.classList.add('hidden');resTop3.classList.add('hidden');resInfo.classList.add('hidden');};
+  function humanSize(bytes) {
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let i = 0;
+    let n = Number(bytes || 0);
 
-  btnPredict.onclick=async()=>{
-    if(!currentFile)return toast('Pilih gambar dulu.');
-    const fd=new FormData();fd.append('file',currentFile,currentFile.name);
-    btnPredict.disabled=true;toast('Memproses...');
-    try{
-      const res=await fetch(API_URL(),{method:'POST',body:fd});
-      const j=await res.json();
+    while (n >= 1024 && i < units.length - 1) {
+      n /= 1024;
+      i += 1;
+    }
 
-      labelId.textContent=j.label_id;labelEn.textContent=`(${j.label_en})`;
-      const conf=j.confidence||0;confPct.textContent=fmtPct(conf);confBar.style.width=(conf*100)+'%';
-      resMain.classList.remove('hidden');
+    return n.toFixed(1) + ' ' + units[i];
+  }
 
-      if(j.top3){
-        const labels=j.top3.map(x=>x.label_id);
-        const data=j.top3.map(x=>x.confidence);
-        const ctx=document.getElementById('chart').getContext('2d');
-        if(chart)chart.destroy();
-        chart=new Chart(ctx,{type:'bar',data:{labels,datasets:[{label:'Confidence',data,backgroundColor:'#0ea5e9'}]},
-          options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>(v*100)+'%'}}}}});
-        resTop3.classList.remove('hidden');
+  function getFileExtension(filename) {
+    const idx = filename.lastIndexOf('.');
+    if (idx === -1) return '';
+    return filename.slice(idx).toLowerCase();
+  }
+
+  function isAllowedImageFile(file) {
+    const allowedExt = ['.jpg', '.jpeg', '.png', '.bmp', '.webp', '.tif', '.tiff'];
+    const ext = getFileExtension(file.name || '');
+    const typeOk = file.type ? file.type.startsWith('image/') : true;
+    return allowedExt.includes(ext) && typeOk;
+  }
+
+  function setStatus(text, kind = 'info') {
+    statusMsg.textContent = text;
+
+    const chipClass = {
+      info: 'chip chip-warn',
+      ok: 'chip chip-ok',
+      bad: 'chip chip-bad'
+    }[kind] || 'chip chip-warn';
+
+    statusChip.className = chipClass;
+
+    if (kind === 'ok') {
+      statusChip.textContent = 'Siap';
+    } else if (kind === 'bad') {
+      statusChip.textContent = 'Perlu perhatian';
+    } else {
+      statusChip.textContent = 'Menunggu input';
+    }
+  }
+
+  function setResultBadge(text, kind = 'info') {
+    const chipClass = {
+      info: 'chip chip-warn',
+      ok: 'chip chip-ok',
+      bad: 'chip chip-bad'
+    }[kind] || 'chip chip-warn';
+
+    resultBadge.className = chipClass;
+    resultBadge.textContent = text;
+  }
+
+  function resetResultOnly() {
+    resultWrap.classList.add('hidden');
+    resultEmpty.classList.remove('hidden');
+    rejectCard.classList.add('hidden');
+    setResultBadge('Belum ada hasil', 'info');
+
+    labelId.textContent = '-';
+    labelEn.textContent = '-';
+    confPct.textContent = '0%';
+    confBar.style.width = '0%';
+    thresholdText.textContent = '-';
+
+    deskripsiText.textContent = '-';
+    saranText.textContent = '-';
+    top3List.innerHTML = '';
+
+    systemNote.textContent = 'Hasil prediksi akan ditolak jika model mengidentifikasi kelas penolak atau confidence berada di bawah threshold. Hasil sistem merupakan indikasi awal dan bukan pengganti pemeriksaan ahli pertanian.';
+  }
+
+  function resetUI() {
+    currentFile = null;
+    fileInput.value = '';
+    previewImg.removeAttribute('src');
+    previewWrap.classList.add('hidden');
+    btnPredict.disabled = true;
+
+    fileInfo.textContent = '';
+    metaFilename.textContent = '-';
+    metaSize.textContent = '-';
+    metaType.textContent = '-';
+
+    setStatus('', 'info');
+    resetResultOnly();
+  }
+
+  function setRejectedUI(result) {
+    rejectCard.classList.remove('hidden');
+
+    if (result.rejection_reason === 'class_penolak') {
+      rejectCard.className = 'rounded-2xl border border-rose-200 bg-rose-50 p-4';
+      rejectTitle.textContent = 'Gambar ditolak sebagai kelas penolak';
+      rejectDesc.textContent = 'Model mengidentifikasi gambar sebagai bukan daun tomat atau tidak dikenali.';
+      rejectChip.textContent = 'Unknown';
+      rejectChip.className = 'chip chip-bad';
+      systemNote.textContent = 'Sistem menolak gambar karena top-1 prediksi berada pada kelas Unknown/non-daun tomat.';
+      return;
+    }
+
+    if (
+      result.rejection_reason === 'confidence_rendah' ||
+      result.rejection_reason === 'confidence_below_threshold'
+    ) {
+      rejectCard.className = 'rounded-2xl border border-amber-200 bg-amber-50 p-4';
+      rejectTitle.textContent = 'Prediksi kurang pasti';
+      rejectDesc.textContent = 'Confidence berada di bawah threshold sehingga hasil tidak diterima sebagai prediksi final.';
+      rejectChip.textContent = 'Threshold';
+      rejectChip.className = 'chip chip-warn';
+      systemNote.textContent = 'Sistem menolak prediksi karena confidence belum cukup tinggi. Gunakan gambar yang lebih fokus dan pencahayaan lebih baik.';
+      return;
+    }
+
+    rejectCard.classList.add('hidden');
+    systemNote.textContent = 'Prediksi diterima. Hasil kelas utama, deskripsi, saran, dan top-3 probabilitas ditampilkan berdasarkan output model.';
+  }
+
+  function renderTop3(top3) {
+    top3List.innerHTML = '';
+
+    if (!Array.isArray(top3) || top3.length === 0) {
+      top3List.innerHTML = '<p class="text-xs text-slate-500">Top-3 probabilitas tidak tersedia.</p>';
+      return;
+    }
+
+    top3.forEach((item, idx) => {
+      const confidence = Number(item.confidence || 0);
+      const label = item.label_id || item.label_en || '-';
+
+      const row = document.createElement('div');
+      row.className = 'rounded-xl border border-slate-200 bg-slate-50 p-3';
+
+      row.innerHTML = `
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-[11px] uppercase tracking-wide text-slate-500">Peringkat ${idx + 1}</div>
+            <div class="mt-0.5 text-sm font-bold text-slate-900 truncate">${label}</div>
+          </div>
+          <div class="text-sm font-extrabold text-slate-900">${fmtPct(confidence)}</div>
+        </div>
+        <div class="bar mt-2">
+          <span style="width:${(confidence * 100).toFixed(2)}%"></span>
+        </div>
+      `;
+
+      top3List.appendChild(row);
+    });
+  }
+
+  function setFile(file) {
+    if (!file) return;
+
+    if (!isAllowedImageFile(file)) {
+      currentFile = null;
+      btnPredict.disabled = true;
+      setStatus('File harus berupa gambar dengan format yang didukung.', 'bad');
+      return;
+    }
+
+    currentFile = file;
+
+    const url = URL.createObjectURL(file);
+    previewImg.src = url;
+    previewImg.onload = () => URL.revokeObjectURL(url);
+
+    previewWrap.classList.remove('hidden');
+    btnPredict.disabled = false;
+
+    fileInfo.textContent = `${file.name} • ${humanSize(file.size)} • ${file.type || 'unknown'}`;
+    metaFilename.textContent = file.name;
+    metaSize.textContent = humanSize(file.size);
+    metaType.textContent = file.type || '-';
+
+    setStatus('Gambar siap diproses.', 'ok');
+    resetResultOnly();
+  }
+
+  // ============================================================
+  // EVENT UPLOAD
+  // ============================================================
+  ['dragenter', 'dragover'].forEach((eventName) => {
+    dz.addEventListener(eventName, (ev) => {
+      ev.preventDefault();
+      dz.classList.add('dragover');
+    });
+  });
+
+  ['dragleave', 'drop'].forEach((eventName) => {
+    dz.addEventListener(eventName, (ev) => {
+      ev.preventDefault();
+      dz.classList.remove('dragover');
+    });
+  });
+
+  dz.addEventListener('drop', (ev) => {
+    const file = ev.dataTransfer.files[0];
+    if (file) setFile(file);
+  });
+
+  dz.addEventListener('click', () => fileInput.click());
+
+  btnPick.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', (ev) => {
+    const file = ev.target.files[0];
+    if (file) setFile(file);
+  });
+
+  btnReset.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    resetUI();
+  });
+
+  // ============================================================
+  // PREDIKSI
+  // ============================================================
+  btnPredict.addEventListener('click', async () => {
+    if (!currentFile) {
+      setStatus('Pilih gambar terlebih dahulu.', 'bad');
+      return;
+    }
+
+    setStatus('Mengirim gambar ke server...', 'info');
+    btnPredict.disabled = true;
+
+    try {
+      const fd = new FormData();
+      fd.append('file', currentFile, currentFile.name);
+
+      const res = await fetch(API_URL(), {
+        method: 'POST',
+        body: fd
+      });
+
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error('Respons server bukan JSON. Pastikan backend Flask berjalan.');
       }
 
-      const info=infoMap[j.label_id] || {desc:"Belum ada deskripsi.",advice:"Tidak tersedia."};
-      resInfo.innerHTML=`<strong>${j.label_id}</strong><br>${info.desc}<br><br><strong>Saran Penanganan:</strong> ${info.advice}`;
-      resInfo.classList.remove('hidden');
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
 
-      const tr=document.createElement('tr');
-      const url=URL.createObjectURL(currentFile);
-      tr.innerHTML=`<td>${new Date().toLocaleString()}</td><td>${j.label_id}</td><td>${fmtPct(conf)}</td><td>${currentFile.name}</td><td><img src="${url}" width="60"></td>`;
-      histTbody.prepend(tr);
-      historyData.push({fileName:currentFile.name,img:url,label:j.label_id,conf:fmtPct(conf),info:info});
-      toast('Prediksi selesai ✅');
-    }catch(e){toast('Gagal prediksi.');console.error(e);}
-    finally{btnPredict.disabled=false;}
-  };
+      resultEmpty.classList.add('hidden');
+      resultWrap.classList.remove('hidden');
 
-  btnClearHistory.onclick=()=>{histTbody.innerHTML='';historyData=[];};
+      const confidence = Number(data.confidence || 0);
+      const threshold = Number(data.confidence_threshold || 0);
 
-  btnDownloadPDF.onclick=async()=>{
-    if(historyData.length===0)return toast('Belum ada data riwayat.');
-    const pdf=new jsPDF('p','pt','a4');
-    pdf.setFontSize(14);
-    pdf.text("LAPORAN HASIL KLASIFIKASI PENYAKIT DAUN TOMAT",200,60,{align:"center"});
-    pdf.setFontSize(10);
-    pdf.text("Model: MobileNetV2 (Flask API)",40,100);
+      labelId.textContent = data.label_id || '-';
+      labelEn.textContent = data.label_en ? `(${data.label_en})` : '-';
 
-    let y=130;
-    for(let i=0;i<historyData.length;i++){
-      const h=historyData[i];
-      const img=await loadImage(h.img);
-      const canvas=document.createElement('canvas');
-      canvas.width=img.width;canvas.height=img.height;
-      canvas.getContext('2d').drawImage(img,0,0);
-      const dataURL=canvas.toDataURL('image/jpeg',0.6);
-      pdf.addImage(dataURL,'JPEG',60,y,150,110);
-      y+=130;
-      pdf.setFontSize(11);
-      pdf.text(`${i+1}. File: ${h.fileName}`,40,y);
-      pdf.setFontSize(10);
-      pdf.text(`Label: ${h.label}`,40,y+15);
-      pdf.text(`Kepercayaan: ${h.conf}`,40,y+30);
-      const desc=pdf.splitTextToSize("Deskripsi: "+h.info.desc,460);
-      const adv=pdf.splitTextToSize("Saran: "+h.info.advice,460);
-      pdf.text(desc,40,y+50);
-      pdf.text(adv,40,y+70+(desc.length*10));
+      confPct.textContent = fmtPct(confidence);
+      confBar.style.width = `${(confidence * 100).toFixed(2)}%`;
+      thresholdText.textContent = `Threshold: ${fmtPct(threshold)}`;
 
-      y+=100+(desc.length+adv.length)*6;
-      if(y>720){pdf.addPage();y=60;}
+      deskripsiText.textContent = data.deskripsi || '-';
+      saranText.textContent = data.saran || '-';
+
+      renderTop3(data.top3 || []);
+
+      const info = data.file_info || {};
+      metaFilename.textContent = info.filename || currentFile.name || '-';
+      metaSize.textContent = info.size_bytes ? humanSize(info.size_bytes) : humanSize(currentFile.size);
+      metaType.textContent = info.content_type || currentFile.type || '-';
+
+      if (data.is_rejected) {
+        setRejectedUI(data);
+        setStatus('Gambar ditolak oleh sistem.', 'bad');
+        setResultBadge('Ditolak', 'bad');
+      } else {
+        setRejectedUI(data);
+        setStatus('Prediksi berhasil.', 'ok');
+        setResultBadge('Berhasil', 'ok');
+      }
+    } catch (err) {
+      resetResultOnly();
+      setStatus(`Gagal memproses gambar: ${err.message || err}`, 'bad');
+      setResultBadge('Gagal', 'bad');
+    } finally {
+      btnPredict.disabled = !currentFile;
     }
-    pdf.save("Laporan_Klasifikasi_Tomat.pdf");
-  };
+  });
 
-  function loadImage(url){return new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=url;});}
+  resetUI();
 </script>
 </body>
 </html>
-
-
