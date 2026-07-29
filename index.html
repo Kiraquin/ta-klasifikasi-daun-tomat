@@ -161,6 +161,23 @@
           <p id="statusMsg" class="mt-3 text-xs text-slate-600"></p>
         </div>
 
+        <!-- Citra Contoh -->
+        <div class="rounded-2xl bg-white border border-slate-200 shadow-sm p-4">
+          <div class="flex items-center justify-between gap-3 mb-3">
+            <div>
+              <h2 class="text-lg font-extrabold text-slate-900">Citra Contoh</h2>
+              <p class="text-xs text-slate-500">Tidak punya citra daun tomat? Coba salah satu contoh berikut.</p>
+            </div>
+            <button id="btnReloadSamples" type="button" class="shrink-0 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-200">
+              Muat Ulang
+            </button>
+          </div>
+
+          <div id="sampleTabs" class="flex flex-wrap gap-2 mb-3"></div>
+          <p id="samplesStatus" class="mb-2 text-xs text-slate-500">Memuat citra contoh...</p>
+          <div id="sampleGrid" class="grid grid-cols-3 gap-2 sm:grid-cols-4"></div>
+        </div>
+
         <!-- Ringkasan alur -->
         <div class="rounded-2xl bg-white border border-slate-200 shadow-sm p-4">
           <h2 class="text-base font-extrabold text-slate-900">Alur Sistem</h2>
@@ -334,6 +351,7 @@
 
   const API_URL = () => `${API_BASE_URL}/predict`;
   const HEALTH_URL = () => `${API_BASE_URL}/health`;
+  const SAMPLES_URL = () => `${API_BASE_URL}/samples`;
 
   // Header ini melewati halaman peringatan ngrok paket gratis untuk request API.
   const NGROK_HEADERS = {
@@ -360,6 +378,11 @@
   const statusChip = document.getElementById('statusChip');
   const resultBadge = document.getElementById('resultBadge');
   const backendStatusText = document.getElementById('backendStatusText');
+
+  const btnReloadSamples = document.getElementById('btnReloadSamples');
+  const sampleTabs = document.getElementById('sampleTabs');
+  const samplesStatus = document.getElementById('samplesStatus');
+  const sampleGrid = document.getElementById('sampleGrid');
 
   const resultEmpty = document.getElementById('resultEmpty');
   const resultWrap = document.getElementById('resultWrap');
@@ -648,6 +671,172 @@
   }
 
   // ============================================================
+  // CITRA CONTOH (SAMPLE GALLERY)
+  // Menyediakan citra uji siap pakai dari backend (endpoint GET /samples)
+  // agar pengguna dapat langsung mencoba fitur klasifikasi tanpa perlu
+  // menyiapkan foto daun tomat sendiri.
+  // ============================================================
+  let sampleCategories = {};
+  let sampleList = [];
+  let activeSampleCategory = null;
+  const sampleBlobCache = new Map(); // url relatif -> Blob (cache agar tidak fetch berulang)
+
+  function tabButtonClass(isActive) {
+    return isActive
+      ? 'rounded-full px-3 py-1.5 text-xs font-bold bg-blue-600 text-white'
+      : 'rounded-full px-3 py-1.5 text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200';
+  }
+
+  function renderSampleTabs() {
+    sampleTabs.innerHTML = '';
+
+    Object.keys(sampleCategories).forEach((category) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = sampleCategories[category];
+      btn.className = tabButtonClass(category === activeSampleCategory);
+
+      btn.addEventListener('click', () => {
+        if (activeSampleCategory === category) return;
+        activeSampleCategory = category;
+        renderSampleTabs();
+        renderSampleGrid();
+      });
+
+      sampleTabs.appendChild(btn);
+    });
+  }
+
+  function renderSampleGrid() {
+    sampleGrid.innerHTML = '';
+
+    const items = sampleList.filter((item) => item.category === activeSampleCategory);
+
+    if (items.length === 0) {
+      sampleGrid.innerHTML =
+        '<p class="col-span-full text-xs text-slate-500">Tidak ada citra pada kategori ini.</p>';
+      return;
+    }
+
+    items.forEach((item) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.title = `Gunakan citra ini: ${item.filename}`;
+      btn.className =
+        'group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-100';
+
+      const img = document.createElement('img');
+      img.className = 'h-full w-full object-cover transition group-hover:scale-105';
+      img.alt = item.filename;
+      btn.appendChild(img);
+
+      const overlay = document.createElement('span');
+      overlay.className =
+        'absolute inset-x-0 bottom-0 bg-black/55 px-1.5 py-1 text-center text-[10px] font-bold text-white opacity-0 transition group-hover:opacity-100';
+      overlay.textContent = 'Gunakan citra ini';
+      btn.appendChild(overlay);
+
+      btn.addEventListener('click', () => useSampleImage(item));
+      sampleGrid.appendChild(btn);
+
+      loadSampleThumbnail(item, img);
+    });
+  }
+
+  async function getSampleBlob(item) {
+    if (sampleBlobCache.has(item.url)) {
+      return sampleBlobCache.get(item.url);
+    }
+
+    const res = await fetchWithTimeout(`${API_BASE_URL}${item.url}`, {
+      method: 'GET',
+      headers: NGROK_HEADERS,
+      cache: 'no-store'
+    }, 15000);
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+
+    const blob = await res.blob();
+    sampleBlobCache.set(item.url, blob);
+    return blob;
+  }
+
+  async function loadSampleThumbnail(item, imgEl) {
+    try {
+      const blob = await getSampleBlob(item);
+      imgEl.src = URL.createObjectURL(blob);
+    } catch (err) {
+      imgEl.parentElement.classList.add('flex', 'items-center', 'justify-center');
+      imgEl.replaceWith(
+        Object.assign(document.createElement('span'), {
+          className: 'px-1 text-center text-[10px] font-semibold text-rose-600',
+          textContent: 'Gagal memuat'
+        })
+      );
+    }
+  }
+
+  async function useSampleImage(item) {
+    try {
+      setStatus('Memuat citra contoh...', 'info');
+      const blob = await getSampleBlob(item);
+      const file = new File([blob], item.filename, { type: blob.type || 'image/jpeg' });
+      setFile(file);
+    } catch (err) {
+      setStatus(`Gagal memuat citra contoh: ${err.message || err}`, 'bad');
+    }
+  }
+
+  async function loadSamples() {
+    samplesStatus.textContent = 'Memuat daftar citra contoh...';
+    sampleTabs.innerHTML = '';
+    sampleGrid.innerHTML = '';
+
+    try {
+      const res = await fetchWithTimeout(SAMPLES_URL(), {
+        method: 'GET',
+        headers: NGROK_HEADERS,
+        cache: 'no-store'
+      }, 15000);
+
+      const raw = await res.text();
+      let data;
+
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        throw new Error('Respons /samples bukan JSON. Pastikan backend versi terbaru aktif.');
+      }
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      sampleCategories = data.categories || {};
+      sampleList = data.samples || [];
+
+      if (!activeSampleCategory || !sampleCategories[activeSampleCategory]) {
+        activeSampleCategory = Object.keys(sampleCategories)[0] || null;
+      }
+
+      if (sampleList.length === 0) {
+        samplesStatus.textContent = 'Belum ada citra contoh yang disiapkan di folder sample_images/ pada backend.';
+        return;
+      }
+
+      samplesStatus.textContent = `${sampleList.length} citra contoh tersedia — klik salah satu untuk mencoba.`;
+      renderSampleTabs();
+      renderSampleGrid();
+    } catch (err) {
+      samplesStatus.textContent = `Gagal memuat citra contoh: ${err.message || err}`;
+    }
+  }
+
+  btnReloadSamples.addEventListener('click', loadSamples);
+
+  // ============================================================
   // EVENT UPLOAD
   // ============================================================
   ['dragenter', 'dragover'].forEach((eventName) => {
@@ -786,6 +975,7 @@
 
   resetUI();
   checkBackend();
+  loadSamples();
 </script>
 </body>
 </html>
