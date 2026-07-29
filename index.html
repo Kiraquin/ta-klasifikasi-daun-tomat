@@ -59,7 +59,7 @@
           </p>
         </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
           <div class="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
             <div class="text-slate-500">Model</div>
             <div class="font-bold text-slate-800">MobileNetV2</div>
@@ -75,6 +75,10 @@
           <div class="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
             <div class="text-slate-500">Validasi</div>
             <div class="font-bold text-slate-800">Threshold</div>
+          </div>
+          <div class="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
+            <div class="text-slate-500">Backend</div>
+            <div id="backendStatusText" class="font-bold text-amber-700">Memeriksa...</div>
           </div>
         </div>
       </div>
@@ -266,7 +270,7 @@
                 <dl class="mt-3 space-y-2 text-xs">
                   <div class="flex justify-between gap-3">
                     <dt class="text-slate-500">File</dt>
-                    <dd id="metaFilename" class="font-semibold text-right">-</dd>
+                    <dd id="metaFilename" class="font-semibold text-right break-all">-</dd>
                   </div>
                   <div class="flex justify-between gap-3">
                     <dt class="text-slate-500">Ukuran</dt>
@@ -275,6 +279,30 @@
                   <div class="flex justify-between gap-3">
                     <dt class="text-slate-500">Tipe</dt>
                     <dd id="metaType" class="font-semibold text-right">-</dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-slate-500">Resolusi</dt>
+                    <dd id="metaDimensions" class="font-semibold text-right">-</dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-slate-500">Model</dt>
+                    <dd id="metaModel" class="font-semibold text-right break-all">-</dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-slate-500">Backend</dt>
+                    <dd id="metaBackend" class="font-semibold text-right">-</dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-slate-500">Inferensi model</dt>
+                    <dd id="metaInference" class="font-semibold text-right">-</dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-slate-500">Total backend</dt>
+                    <dd id="metaBackendTotal" class="font-semibold text-right">-</dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-slate-500">End-to-end</dt>
+                    <dd id="metaEndToEnd" class="font-semibold text-right">-</dd>
                   </div>
                 </dl>
 
@@ -300,10 +328,20 @@
   // ============================================================
   // KONFIGURASI API
   // ============================================================
-  // Lokal:
+  // Backend refinement final melalui ngrok.
+  // Bila domain ngrok berubah setelah tunnel dimulai ulang, ubah nilai ini.
   const API_BASE_URL = 'https://clinton-dizziest-misrely.ngrok-free.dev';
 
   const API_URL = () => `${API_BASE_URL}/predict`;
+  const HEALTH_URL = () => `${API_BASE_URL}/health`;
+
+  // Header ini melewati halaman peringatan ngrok paket gratis untuk request API.
+  const NGROK_HEADERS = {
+    'ngrok-skip-browser-warning': '1'
+  };
+
+  const REQUEST_TIMEOUT_MS = 30000;
+  const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
   // ============================================================
   // DOM
@@ -321,6 +359,7 @@
   const statusMsg = document.getElementById('statusMsg');
   const statusChip = document.getElementById('statusChip');
   const resultBadge = document.getElementById('resultBadge');
+  const backendStatusText = document.getElementById('backendStatusText');
 
   const resultEmpty = document.getElementById('resultEmpty');
   const resultWrap = document.getElementById('resultWrap');
@@ -343,6 +382,12 @@
   const metaFilename = document.getElementById('metaFilename');
   const metaSize = document.getElementById('metaSize');
   const metaType = document.getElementById('metaType');
+  const metaDimensions = document.getElementById('metaDimensions');
+  const metaModel = document.getElementById('metaModel');
+  const metaBackend = document.getElementById('metaBackend');
+  const metaInference = document.getElementById('metaInference');
+  const metaBackendTotal = document.getElementById('metaBackendTotal');
+  const metaEndToEnd = document.getElementById('metaEndToEnd');
   const systemNote = document.getElementById('systemNote');
 
   let currentFile = null;
@@ -365,6 +410,59 @@
     }
 
     return n.toFixed(1) + ' ' + units[i];
+  }
+
+  function fmtMs(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? `${n.toFixed(2)} ms` : '-';
+  }
+
+  async function fetchWithTimeout(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      return await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  async function checkBackend() {
+    backendStatusText.textContent = 'Memeriksa...';
+    backendStatusText.className = 'font-bold text-amber-700';
+
+    try {
+      const res = await fetchWithTimeout(HEALTH_URL(), {
+        method: 'GET',
+        headers: NGROK_HEADERS,
+        cache: 'no-store'
+      }, 12000);
+
+      const raw = await res.text();
+      let data;
+
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        throw new Error('Respons health bukan JSON');
+      }
+
+      if (!res.ok || data.status !== 'ok') {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      backendStatusText.textContent = 'Online';
+      backendStatusText.className = 'font-bold text-emerald-700';
+      backendStatusText.title = `${data.model || '-'} • threshold ${data.threshold ?? '-'}`;
+    } catch (err) {
+      backendStatusText.textContent = 'Offline';
+      backendStatusText.className = 'font-bold text-rose-700';
+      backendStatusText.title = err.message || String(err);
+    }
   }
 
   function getFileExtension(filename) {
@@ -441,6 +539,12 @@
     metaFilename.textContent = '-';
     metaSize.textContent = '-';
     metaType.textContent = '-';
+    metaDimensions.textContent = '-';
+    metaModel.textContent = '-';
+    metaBackend.textContent = '-';
+    metaInference.textContent = '-';
+    metaBackendTotal.textContent = '-';
+    metaEndToEnd.textContent = '-';
 
     setStatus('', 'info');
     resetResultOnly();
@@ -518,6 +622,13 @@
       return;
     }
 
+    if (file.size > MAX_FILE_BYTES) {
+      currentFile = null;
+      btnPredict.disabled = true;
+      setStatus('Ukuran file melebihi batas 5 MB.', 'bad');
+      return;
+    }
+
     currentFile = file;
 
     const url = URL.createObjectURL(file);
@@ -591,16 +702,26 @@
       const fd = new FormData();
       fd.append('file', currentFile, currentFile.name);
 
-      const res = await fetch(API_URL(), {
+      const endToEndStarted = performance.now();
+
+      const res = await fetchWithTimeout(API_URL(), {
         method: 'POST',
-        body: fd
+        headers: NGROK_HEADERS,
+        body: fd,
+        cache: 'no-store'
       });
+
+      const endToEndMs = performance.now() - endToEndStarted;
+      const raw = await res.text();
 
       let data;
       try {
-        data = await res.json();
+        data = JSON.parse(raw);
       } catch {
-        throw new Error('Respons server bukan JSON. Pastikan backend Flask berjalan.');
+        if (raw.includes('ERR_NGROK_6024')) {
+          throw new Error('Permintaan tertahan halaman peringatan ngrok.');
+        }
+        throw new Error('Respons server bukan JSON. Pastikan backend Flask dan tunnel ngrok aktif.');
       }
 
       if (!res.ok || !data.success) {
@@ -626,9 +747,18 @@
       renderTop3(data.top3 || []);
 
       const info = data.file_info || {};
+      const latency = data.latency_ms || {};
+
       metaFilename.textContent = info.filename || currentFile.name || '-';
       metaSize.textContent = info.size_bytes ? humanSize(info.size_bytes) : humanSize(currentFile.size);
       metaType.textContent = info.content_type || currentFile.type || '-';
+      metaDimensions.textContent =
+        info.width && info.height ? `${info.width} × ${info.height} px` : '-';
+      metaModel.textContent = data.model || '-';
+      metaBackend.textContent = data.backend_version || data.model_stage || '-';
+      metaInference.textContent = fmtMs(latency.inference);
+      metaBackendTotal.textContent = fmtMs(latency.total);
+      metaEndToEnd.textContent = fmtMs(endToEndMs);
 
       if (data.is_rejected) {
         setRejectedUI(data);
@@ -641,7 +771,13 @@
       }
     } catch (err) {
       resetResultOnly();
-      setStatus(`Gagal memproses gambar: ${err.message || err}`, 'bad');
+
+      const message =
+        err?.name === 'AbortError'
+          ? 'Permintaan melebihi batas waktu 30 detik.'
+          : (err.message || err);
+
+      setStatus(`Gagal memproses gambar: ${message}`, 'bad');
       setResultBadge('Gagal', 'bad');
     } finally {
       btnPredict.disabled = !currentFile;
@@ -649,6 +785,7 @@
   });
 
   resetUI();
+  checkBackend();
 </script>
 </body>
 </html>
